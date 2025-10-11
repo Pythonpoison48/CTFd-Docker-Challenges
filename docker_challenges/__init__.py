@@ -46,10 +46,9 @@ from CTFd.plugins import register_admin_plugin_menu_bar
 from CTFd.forms import BaseForm
 from CTFd.forms.fields import SubmitField
 from CTFd.utils.config import get_themes
-
+from CTFd.utils import get_config
 from pathlib import Path
-
-
+import os
 class DockerConfig(db.Model):
     """
 	Docker Config Model. This model stores the config for docker API connections.
@@ -528,7 +527,11 @@ class DockerChallengeType(BaseChallenge):
         db.session.commit()
         #db.session.close()
 
-
+    @staticmethod
+    def set_docker_img_from_config(chall_name,img_name):
+        challenge = DockerChallenge.query.filter_by(name=chall_name).first()
+        setattr(challenge,'docker_image',img_name)
+        db.session.commit()
 class DockerChallenge(Challenges):
     __mapper_args__ = {'polymorphic_identity': 'docker'}
     id = db.Column(None, db.ForeignKey('challenges.id'), primary_key=True)
@@ -691,8 +694,38 @@ class DockerAPI(Resource):
                    }, 400
 
 
+def create_conf_from_ini(conf_created):
+    if conf_created:
+        return
+    docker_hostname = get_config("docker_hostname")
+    docker_repos = get_config("docker_repos")
+    docker_assoc = get_config("docker_assoc")   # long string like   chall:repo,chall2:repo2,chall3:repo3
+    conf = DockerConfig.query.get(1)
+    if not conf:
+        conf = DockerConfig(id=1)
+    if docker_hostname:
+        print("committing changes ...")
+        conf.hostname = docker_hostname
+    if docker_repos:
+        print("creating repos")
+        conf.repositories = docker_repos # care docker_repos is not a list but a string of elements separated by ,
+    if docker_assoc:
+        associations = docker_assoc.split(',')
+        for a in associations:
+            idx = a.index(':')
+            chall = a[0:idx]
+            repo = a[idx+1:]
+            DockerChallengeType.set_docker_img_from_config(chall,repo)
+            print("chall  : " + chall + " set to " + repo + " ;")
+    db.session.add(conf)
+    db.session.commit()
 
+    conf_created = True
+
+
+conf_created = False
 def load(app):
+    global conf_created
     app.db.create_all()
     CHALLENGE_CLASSES['docker'] = DockerChallengeType
     @app.template_filter('datetimeformat')
@@ -705,3 +738,5 @@ def load(app):
     CTFd_API_v1.add_namespace(container_namespace, '/container')
     CTFd_API_v1.add_namespace(active_docker_namespace, '/docker_status')
     CTFd_API_v1.add_namespace(kill_container, '/nuke')
+    create_conf_from_ini(conf_created)
+    conf_created = True
