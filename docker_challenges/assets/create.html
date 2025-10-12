@@ -15,6 +15,32 @@
     </label>
     <select id="dockerimage_select" name="docker_image" class="form-control" required></select>
 </div>
+
+<div class="form-group">
+    <label for="memory_limit">
+        Memory Limit
+        <small class="form-text text-muted">
+            exemple : 512m, 1g, 2g (base 100m)
+        </small>
+    </label>
+    <input type="text" class="form-control" name="memory_limit" id="memory_limit" 
+           placeholder="100m">
+</div>
+
+<div class="form-group">
+    <label for="cpu_limit">
+        CPU Limit
+        <small class="form-text text-muted">
+            max cpu usage : (e.g., 0.5, 1.0, 2.0) (base 0.25)
+        </small>
+    </label>
+    <input type="number" step="0.1" class="form-control" name="cpu_limit" id="cpu_limit" 
+           placeholder="0.25">
+</div>
+
+
+
+
 {% endblock %}
 {% block type %}
 <input type="hidden" name="type" value="docker" id="chaltype">
