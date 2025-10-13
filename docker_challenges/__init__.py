@@ -293,7 +293,7 @@ def get_required_ports(docker, image):
     return result
 
 
-def create_container(docker, image, team, portbl, memory_limit="100m", cpu_limit="0.25"):
+def create_container(docker, image, team, portbl, memory_limit="100m", cpu_limit="0.2"):
     tls = docker.tls_enabled
     CERT = None
     if not tls:
