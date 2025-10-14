@@ -617,7 +617,7 @@ class ContainerAPI(Resource):
             if int(session.id) == int(i.user_id):
                 return abort(403,f"Another container is already running for challenge:<br><i><b>{i.challenge}</b></i>.<br>Please stop this first.<br>You can only run one container.")
 
-        docker_challenge = DockerChallenge.query.filter_by(docker_image=container)
+        docker_challenge = DockerChallenge.query.filter_by(docker_image=container).first()
         memory_limit = docker_challenge.memory_limit if docker_challenge else None
         cpu_limit = docker_challenge.cpu_limit if docker_challenge else None
             
