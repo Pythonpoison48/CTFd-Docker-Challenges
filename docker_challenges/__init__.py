@@ -320,7 +320,7 @@ def create_container(docker, image, team, portbl, memory_limit="100m", cpu_limit
         bindings[i] = [{"HostPort": tmp_ports.pop()}]
     headers = {'Content-Type': "application/json"}
 
-    host_config = {"Portbindings": bindings}
+    host_config = {"PortBindings": bindings}
 
     if memory_limit:
         host_config["Memory"] = parse_memory_limit(memory_limit)
