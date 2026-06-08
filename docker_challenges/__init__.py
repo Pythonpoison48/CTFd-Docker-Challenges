@@ -615,7 +615,7 @@ class ContainerAPI(Resource):
         containers = DockerChallengeTracker.query.all()
         for i in containers:
             if int(session.id) == int(i.user_id):
-                return abort(403,f"Another container is already running for challenge:<br><i><b>{i.challenge}</b></i>.<br>Please stop this first.<br>You can only run one container.")
+                i.delete_container()
 
         docker_challenge = DockerChallenge.query.filter_by(docker_image=container).first()
         memory_limit = docker_challenge.memory_limit if docker_challenge else None
@@ -722,10 +722,10 @@ def parse_memory_limit(memory_str):
 
     unit_dic = {'k':1024,'m':1024**2,'g': 1024**3}
 
-    if memory_str[-1] in unit:
+    if memory_str[-1] in unit_dic:
         number = float(memory_str)
         unit   = memory_str[-1]
-        return int(number * units[unit])
+        return int(number * unit_dic[unit])
     else:
         return int(memory_str)
     
