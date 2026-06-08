@@ -1,3 +1,5 @@
+
+
 import traceback
 
 from CTFd.plugins.challenges import BaseChallenge, CHALLENGE_CLASSES, get_chal_class
@@ -193,7 +195,7 @@ class KillContainerAPI(Resource):
     def get(self):
         container = request.args.get('container')
         full = request.args.get('all')
-        docker_config = DockerConfig.query.filter_by(id=1).first()
+        docker_config = DockerConfig.query.filter_by(id=1).first() 
         docker_tracker = DockerChallengeTracker.query.all()
         if full == "true":
             for c in docker_tracker:
@@ -293,7 +295,7 @@ def get_required_ports(docker, image):
     return result
 
 
-def create_container(docker, image, team, portbl, memory_limit="100m", cpu_limit="0.2"):
+def create_container(docker, image, team, portbl):
     tls = docker.tls_enabled
     CERT = None
     if not tls:
@@ -304,7 +306,7 @@ def create_container(docker, image, team, portbl, memory_limit="100m", cpu_limit
     URL_TEMPLATE = '%s://%s' % (prefix, host)
     needed_ports = get_required_ports(docker, image)
     team = hashlib.md5(team.encode("utf-8")).hexdigest()[:10]
-    container_name = "%s_%s" % (image.split(':')[0], team)
+    container_name = "%s_%s" % (image.split(':')[1], team)
     assigned_ports = dict()
     for i in needed_ports:
         while True:
@@ -319,18 +321,7 @@ def create_container(docker, image, team, portbl, memory_limit="100m", cpu_limit
         ports[i] = {}
         bindings[i] = [{"HostPort": tmp_ports.pop()}]
     headers = {'Content-Type': "application/json"}
-
-    host_config = {"PortBindings": bindings}
-
-    if memory_limit:
-        host_config["Memory"] = parse_memory_limit(memory_limit)
-    if cpu_limit:
-        host_config["NanoCpus"] = int(cpu_limit * 1_000_000_000)
-    
-        
-    
-    data = json.dumps({"Image": image, "ExposedPorts": ports, "HostConfig": host_config})
-    
+    data = json.dumps({"Image": image, "ExposedPorts": ports, "HostConfig": {"PortBindings": bindings}})
     if tls:
         cert, verify = get_client_cert(docker)
         r = requests.post(url="%s/containers/create?name=%s" % (URL_TEMPLATE, container_name), cert=cert,
@@ -429,8 +420,6 @@ class DockerChallengeType(BaseChallenge):
             'name': challenge.name,
             'value': challenge.value,
             'docker_image': challenge.docker_image,
-            'memory_limit': challenge.memory_limit,
-            'cpu_limit': challenge.cpu_limit,
             'description': challenge.description,
             'category': challenge.category,
             'state': challenge.state,
@@ -549,8 +538,7 @@ class DockerChallenge(Challenges):
     __mapper_args__ = {'polymorphic_identity': 'docker'}
     id = db.Column(None, db.ForeignKey('challenges.id'), primary_key=True)
     docker_image = db.Column(db.String(128), index=True)
-    memory_limit = db.Column(db.String(32),index=True)
-    cpu_limit    = db.Column(db.Float,index=True)
+
 
 # API
 container_namespace = Namespace("container", description='Endpoint to interact with containers')
@@ -613,16 +601,14 @@ class ContainerAPI(Resource):
         
         # Check if a container is already running for this user. We need to recheck the DB first
         containers = DockerChallengeTracker.query.all()
+
         for i in containers:
             if int(session.id) == int(i.user_id):
-                i.delete_container()
-
-        docker_challenge = DockerChallenge.query.filter_by(docker_image=container).first()
-        memory_limit = docker_challenge.memory_limit if docker_challenge else None
-        cpu_limit = docker_challenge.cpu_limit if docker_challenge else None
-            
+                delete_container(docker, i.instance_id)
+                db.session.delete(i)
+        db.session.commit()
         portsbl = get_unavailable_ports(docker)
-        create = create_container(docker, container, session.name, portsbl,memory_limit,cpu_limit)
+        create = create_container(docker, container, session.name, portsbl)
         ports = json.loads(create[1])['HostConfig']['PortBindings'].values()
         entry = DockerChallengeTracker(
             team_id=session.id if is_teams_mode() else None,
@@ -712,33 +698,12 @@ class DockerAPI(Resource):
                    }, 400
 
 
-
-def parse_memory_limit(memory_str):
-
-    if not memory_str:
-        return None
-
-    memory_str = memory_str.lower().strip()
-
-    unit_dic = {'k':1024,'m':1024**2,'g': 1024**3}
-
-    if memory_str[-1] in unit_dic:
-        number = float(memory_str)
-        unit   = memory_str[-1]
-        return int(number * unit_dic[unit])
-    else:
-        return int(memory_str)
-    
 def create_conf_from_ini(conf_created):
     if conf_created:
         return
     docker_hostname = get_config("docker_hostname")
     docker_repos = get_config("docker_repos")
     docker_assoc = get_config("docker_assoc")   # long string like   chall:repo,chall2:repo2,chall3:repo3
-    tls_here     = get_config("tls_enabled")
-    ca_cert_here = get_config("ca_cert_docker")
-    client_cert  = get_config("client_cert_docker")
-    
     conf = DockerConfig.query.get(1)
     if not conf:
         conf = DockerConfig(id=1)
